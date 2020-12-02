@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 
-from transformers import BertTokenizer, BertModel, BertForMaskedLM, AdamW, WarmupLinearSchedule
+from transformers import BertTokenizer, BertModel, BertForMaskedLM, AdamW
 #import train_text_classifier_new
 
 import cbert_utils
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 """cuda or cpu"""
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cpu')
 
 
 def main():
@@ -39,11 +40,11 @@ def main():
                         help="The output dir for augmented dataset.")
     parser.add_argument("--save_model_dir", default="cbert_model", type=str,
                         help="The cache dir for saved model.")
-    parser.add_argument("--bert_model", default="bert-base-uncased", type=str,
+    parser.add_argument("--bert_model", default="beomi/kcbert-base", type=str,
                         help="The path of pretrained bert model.")
-    parser.add_argument("--task_name", default="subj", type=str,
+    parser.add_argument("--task_name", default="2020AIGrand", type=str,
                         help="The name of the task to train.")
-    parser.add_argument("--max_seq_length", default=64, type=int,
+    parser.add_argument("--max_seq_length", default=128, type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. \n"
                              "Sequence longer than this will be truncated, and sequences shorter \n"
                              "than this wille be padded.")
@@ -75,6 +76,7 @@ def main():
         "mpqa": AugProcessor,
         "rt-polarity": AugProcessor,
         "subj": AugProcessor,
+        '2020AIGrand': AugProcessor
     }
 
     task_name = args.task_name
@@ -94,7 +96,7 @@ def main():
     ## leveraging lastest bert module in Transformers to load pre-trained model (weights)
     model = BertForMaskedLM.from_pretrained(args.bert_model)
 
-    if task_name == 'stsa.fine':
+    if task_name == 'stsa.fine' or task_name=='2020AIGrand':
         model.bert.embeddings.token_type_embeddings = torch.nn.Embedding(5, 768)
         model.bert.embeddings.token_type_embeddings.weight.data.normal_(mean=0.0, std=0.02)
     elif task_name == 'TREC':
@@ -137,6 +139,8 @@ def main():
         avg_loss = 0.
 
         for step, batch in enumerate(train_dataloader):
+            batch = batch[:-2]
+
             batch = tuple(t.cuda() for t in batch)
             _, input_ids, input_mask, segment_ids, masked_ids = batch
             """train generator at each batch"""
