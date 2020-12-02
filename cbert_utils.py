@@ -48,14 +48,12 @@ class InputExample(object):
 class InputFeature(object):
     """A single set of features of data."""
 
-    def __init__(self, init_ids, input_ids, input_mask, segment_ids, masked_lm_labels, fn, label):
-        self.init_ids = init_ids
+    def __init__(self, input_ids, input_mask, segment_ids, masked_lm_labels):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.masked_lm_labels = masked_lm_labels
-        self.fn = fn
-        self.label = label
+
 
 class DataProcessor(object):
     """Base class for data converters for sequence classification data sets."""
@@ -334,17 +332,12 @@ def extract_features(example, sent_label, max_seq_length, tokenizer):
     assert len(input_mask) == max_seq_length
     assert len(segment_ids) == max_seq_length
 
-            features.append(
-            InputFeature(
-                init_ids=init_ids,        
-                input_ids=input_ids,
-                input_mask=input_mask,
-                segment_ids=segment_ids,
-                masked_lm_labels=masked_lm_labels,
-                fn=example.fn,
-                label=example.label))
+    features = InputFeature(input_ids=input_ids,
+                             input_mask=input_mask,
+                             segment_ids=segment_ids,
+                             mlm_label_ids=mlm_label_ids)
 
-    return tokens, input_ids, input_mask, segment_ids, mlm_label_ids
+    return features
 
 
 def create_masked_lm_predictions(tokens, tokenizer):
