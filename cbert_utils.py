@@ -269,6 +269,9 @@ def extract_features(tokens_a, tokens_label, max_seq_length, tokenizer):
     if len(tokens_a) > max_seq_length - 2:
         tokens_a = tokens_a[0: (max_seq_length - 2)]
     
+    tokens_a, tokens_a_label = create_masked_lm_predictions(tokens_a, tokenizer)
+    mlm_label_ids = ([-100] + tokens_a_label + [-100])
+
     tokens = []
     segment_ids = []
     tokens.append('[CLS]')
@@ -319,46 +322,29 @@ def convert_tokens_to_ids(tokens, tokenizer):
         ids.append(token_id)
     return ids
 
-def create_masked_lm_predictions(tokens, masked_lm_probs, masked_lm_labels, 
-                                 max_predictions_per_seq, rng, tokenizer):
+def create_masked_lm_predictions(tokens, tokenizer):
     """Creates the predictions for the masked LM objective."""
 
-    #vocab_words = list(tokenizer.vocab.keys())
-    
-    cand_indexes = []
-    for (i, token) in enumerate(tokens):
-        if token == "[CLS]" or token == "[SEP]":
-            continue
-        cand_indexes.append(i)
-    
-    rng.shuffle(cand_indexes)
-    len_cand = len(cand_indexes)
-    output_tokens = list(tokens)
-    num_to_predict = min(max_predictions_per_seq, 
-                         max(1, int(round(len(tokens) * masked_lm_probs))))
-    
-    masked_lm_positions = []
-    covered_indexes = set()
-    for index in cand_indexes:
-        if len(masked_lm_positions) >= num_to_predict:
-            break
-        if index in covered_indexes:
-            continue
-        covered_indexes.add(index)
+    output_label = []
 
-        masked_token = None
-        ## 80% of the time, replace with [MASK]
-        if rng.random() < 0.8:
-            masked_token = "[MASK]"
+    for idx, token in enumerate(tokens):
+        prob = random.random()
+
+        if prob < 0.15:
+            prob /= 0.15
+
+            if prob < 0.8:
+                tokens[idx] = '[MASK]'
+            
+            elif prob < 0.9:
+                tokens[idx] = random.choice(list(tokenizer.vocab.items()))[0]
+
+            try:
+                output_label.append(tokenizer.vocab[token])
+            except KeyError:
+                output_label.append(tokenizer.vocab['[UNK]'])
+                logger.warning(f'Cannot find token "{token}" in vocab. Using [UNK] instead')
         else:
-            ## 10% of the time, keep original
-            if rng.random() < 0.5:
-                masked_token = tokens[index]
-            ## 10% of the time, replace with random word
-            else:
-                masked_token = tokens[cand_indexes[rng.randint(0, len_cand - 1)]]
-                
-        masked_lm_labels[index] = convert_tokens_to_ids([tokens[index]], tokenizer)[0]
-        output_tokens[index] = masked_token
-        masked_lm_positions.append(index)
-    return output_tokens, masked_lm_positions, masked_lm_labels
+            output_label.append(-100)
+
+    return tokens, output_label
