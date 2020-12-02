@@ -271,37 +271,9 @@ class BaseDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-
-def construct_train_dataloader(train_examples, label_list, max_seq_length, train_batch_size, num_train_epochs, tokenizer, device):
-    """construct dataloader for training data"""
-    
-    num_train_steps = None
-    global_step = 0
-    train_features = convert_examples_to_features(
-        train_examples, label_list, max_seq_length, tokenizer)
-    num_train_steps = int(len(train_features) / train_batch_size * num_train_epochs)
-    
-    all_init_ids = torch.tensor([f.init_ids for f in train_features], dtype=torch.long, device=device)
-    all_input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long, device=device)
-    all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long, device=device)
-    all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long, device=device)
-    all_masked_lm_labels = torch.tensor([f.masked_lm_labels for f in train_features], dtype=torch.long, device=device)
-    all_fns = [f.fn for f in train_features]
-    all_labels = [f.label for f in train_features]
-    
-    # tensor_dataset = TensorDataset(all_init_ids, all_input_ids, all_input_mask, 
-    #     all_segment_ids, all_masked_lm_labels)
-
-    tensor_dataset = BaseDataset(all_init_ids, all_input_ids, all_input_mask, all_segment_ids, all_masked_lm_labels, all_fns, all_labels)
-    
-    train_sampler = SequentialSampler(tensor_dataset)
-    # train_sampler = RandomSampler(tensor_dataset)
-    train_dataloader = DataLoader(tensor_dataset, sampler=train_sampler, batch_size=train_batch_size)
-    return train_features, num_train_steps, train_dataloader
-
 def extract_features(example, sent_label, max_seq_length, tokenizer):
     """extract features from tokens"""
-
+    tokens_a = example.tokans_a
     if len(tokens_a) > max_seq_length - 2:
         tokens_a = tokens_a[0: (max_seq_length - 2)]
     
