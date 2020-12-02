@@ -208,18 +208,70 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
 
 class BaseDataset(Dataset):
     def __init__(self, init_ids, input_ids, input_mask, segment_ids, masked_lm_labels, fns, labels):
-        self.init_ids = init_ids
-        self.input_ids = input_ids
-        self.input_mask = input_mask
-        self.segment_ids = segment_ids
-        self.masked_lm_labels = masked_lm_labels
-        self.fns = fns
-        self.labels = labels
+        self.tokenizer = tokenizer
+        self.args = args
+        self.sample_counter = 0
+        self.class2ans = {
+            '000001': 0,
+            '020121': 1,
+            '02051': 2,
+            '020811': 3,
+            '020819': 4
+        }
+        self.pat = re.compile('[A-Z]\s?:\s?(.*)')
+        self.pat1 = re.compile('(.*)')
+
+        with open('datasets/add_v7_train.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        with open('datasets/add_v7_dev.json', 'r', encoding='utf-8') as f:
+            data2 = json.load(f)
+        self.data = data + data2
+
+        for idx, conv in enumerate(self.data):
+            text = []
+            for line in conv['text']:
+                if self.pat.search(line):
+                    line_ = self.pat.search(line).group(1)
+                else:
+                    line_ = self.pat1.search(line).group(1)
+                
+                if line_:
+                    text.append(line_)
+
+            text = map(preprocess_text, text)
+            text = ' '.join(text)
+
+            self.data[idx]['text'] = preprocess_text
+            self.data[idx] = self.class2ans[conv['label']]
 
     def __getitem__(self, idx):
-        return self.init_ids[idx], self.input_ids[idx], self.input_mask[idx], self.segment_ids[idx], self.masked_lm_labels[idx], self.fns[idx], self.labels[idx]
+        guid = self.sample_counter
+        self.sample_counter += 1
+
+        t1 = self.data[idx]['text']
+        label = self.data[idx]['label']
+        fn = self.data[idx]['file_name']
+
+        tokens_a = self.tokenizer.tokenize(t1)
+
+        example = InputExample(guid, tokens_a, label, fn)
+
+        features = extract_features(example, self.tokenizer, self.args.max_seq_length)
+
+        input = {
+            'input_ids':features.input_ids,
+            'input_mask':features.input_mask,
+            'segment_ids':features.segment_ids,
+            'mlm_label_ids': features.mlm_label_ids
+        }
+
+        for k, v in input.items():
+            input[k] = torch.tensor(v)
+
+        return input['input_ids'], input['input_mask'], input['segment_ids'], input['mlm_label_ids'], fn, label
+    
     def __len__(self):
-        return len(self.init_ids)
+        return len(self.data)
 
 
 def construct_train_dataloader(train_examples, label_list, max_seq_length, train_batch_size, num_train_epochs, tokenizer, device):
