@@ -283,7 +283,7 @@ def extract_features(tokens_a, tokens_label, max_seq_length, tokenizer):
     segment_ids.append(tokens_label)
 
     ## construct init_ids for each example
-    init_ids = convert_tokens_to_ids(tokens, tokenizer)
+    init_ids = tokenizer.convert_tokens_to_ids(tokens)
 
     ## construct input_ids for each example, we replace the word_id using 
     ## the ids of masked words (mask words based on original sentence)
@@ -294,7 +294,7 @@ def extract_features(tokens_a, tokens_label, max_seq_length, tokenizer):
     (output_tokens, masked_lm_positions, 
     masked_lm_labels) = create_masked_lm_predictions(
             tokens, masked_lm_probs, original_masked_lm_labels, max_predictions_per_seq, rng, tokenizer)
-    input_ids = convert_tokens_to_ids(output_tokens, tokenizer)
+    input_ids = tokenizer.convert_tokens_to_ids(output_tokens)
 
     # The mask has 1 for real tokens and 0 for padding tokens. Only real
     # tokens are attended to.
@@ -314,13 +314,6 @@ def extract_features(tokens_a, tokens_label, max_seq_length, tokenizer):
 
     return tokens, init_ids, input_ids, input_mask, segment_ids, masked_lm_labels
 
-def convert_tokens_to_ids(tokens, tokenizer):
-    """Converts tokens into ids using the vocab."""
-    ids = []
-    for token in tokens:
-        token_id = tokenizer._convert_token_to_id(token)
-        ids.append(token_id)
-    return ids
 
 def create_masked_lm_predictions(tokens, tokenizer):
     """Creates the predictions for the masked LM objective."""
