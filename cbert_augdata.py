@@ -139,23 +139,34 @@ def main():
     # if not os.path.exists(save_model_dir):
     #     os.mkdir(save_model_dir)
     MASK_id = cbert_utils.convert_tokens_to_ids(['[MASK]'], tokenizer)[0]
-
-    origin_train_path = os.path.join(args.output_dir, "train_origin.tsv")
-    save_train_path = os.path.join(args.output_dir, "train.tsv")
-    shutil.copy(origin_train_path, save_train_path)
+    ans2class = {
+            0: '000001',
+            1: '020121',
+            2: '02051',
+            3: '020811',
+            4: '020819'
+        }
+    # origin_train_path = os.path.join(args.output_dir, "train_origin.tsv")
+    # save_train_path = os.path.join(args.output_dir, "train.tsv")
+    # shutil.copy(origin_train_path, save_train_path)
     # best_test_acc = train_text_classifier.train("aug_data_{}_{}_{}_{}".format(args.sample_num, args.sample_ratio, args.gpu, args.temp))
     # print("before augment best acc:{}".format(best_test_acc))
-
+    file_names = []
     for e in trange(int(args.num_train_epochs), desc="Epoch"):
         torch.cuda.empty_cache()
-        cbert_name = "{}/BertForMaskedLM_{}_epoch_{}".format(task_name, task_name, e+1)
+        # cbert_name = "{}/BertForMaskedLM_{}_epoch_{}".format(task_name, task_name, e+1)
+        cbert_name = "{}/BertForMaskedLM_{}_epoch_{}".format(task_name, task_name, 10)
         model = load_model(cbert_name)
         model.cuda()
-        shutil.copy(origin_train_path, save_train_path)
-        save_train_file = open(save_train_path, 'a')
-        tsv_writer = csv.writer(save_train_file, delimiter='\t')
+        # shutil.copy(origin_train_path, save_train_path)
+        # save_train_file = open(save_train_path, 'a')
+        # tsv_writer = csv.writer(save_train_file, delimiter='\t')
+        data = []
         for _, batch in enumerate(train_dataloader):
             model.eval()
+            fns = batch[-2]
+            labels = batch[-1]
+            batch = batch[:-2]
             batch = tuple(t.cuda() for t in batch)
             init_ids, _, input_mask, segment_ids, _ = batch
             input_lens = [sum(mask).item() for mask in input_mask]
@@ -164,15 +175,24 @@ def main():
                 ids[idx] = MASK_id
             predictions = model(init_ids, input_mask, segment_ids)
             predictions = torch.nn.functional.softmax(predictions[0]/args.temp, dim=2)
-            for ids, idx, preds, seg in zip(init_ids, masked_idx, predictions, segment_ids):
+            
+            for ids, idx, preds, seg, fn, label in zip(init_ids, masked_idx, predictions, segment_ids, fns, labels):
+                conv = {}
                 preds = torch.multinomial(preds, args.sample_num, replacement=True)[idx]
                 if len(preds.size()) == 2:
                     preds = torch.transpose(preds, 0, 1)
                 for pred in preds:
                     ids[idx] = pred
                     new_str = convert_ids_to_str(ids.cpu().numpy(), tokenizer)
-                    tsv_writer.writerow([new_str, seg[0].item()])
+                    # tsv_writer.writerow([new_str, seg[0].item()])
+                    conv['text'] = new_str
+                    conv['label'] = ans2class[int(label)]
+                    conv['file_name'] = f'aug_{fn}'
+                    data.append(conv)
             torch.cuda.empty_cache()
+        print(len(data))
+        with open(f'aug_data/2020AIGrand/train_epoch_{10}.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent='\t')
         predictions = predictions.detach().cpu()
         model.cpu()
         torch.cuda.empty_cache()
