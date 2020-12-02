@@ -18,7 +18,7 @@ from torch.utils.data import TensorDataset, DataLoader, RandomSampler
 from transformers import BertTokenizer, BertModel, BertForMaskedLM, AdamW
 
 import cbert_utils
-import train_text_classifier
+# import train_text_classifier
 
 #PYTORCH_PRETRAINED_BERT_CACHE = ".pytorch_pretrained_bert"
 
@@ -50,17 +50,17 @@ def main():
                         help="The output dir for augmented dataset")
     parser.add_argument("--save_model_dir", default="cbert_model", type=str,
                         help="The cache dir for saved model.")
-    parser.add_argument("--bert_model", default="bert-base-uncased", type=str,
+    parser.add_argument("--bert_model", default="beomi/kcbert-base", type=str,
                         help="The path of pretrained bert model.")
-    parser.add_argument("--task_name", default="subj",type=str,
+    parser.add_argument("--task_name", default="2020AIGrand",type=str,
                         help="The name of the task to train.")
-    parser.add_argument("--max_seq_length", default=64, type=int,
+    parser.add_argument("--max_seq_length", default=128, type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. \n"
                              "Sequences longer than this will be truncated, and sequences shorter \n"
                              "than this will be padded.")
     parser.add_argument("--do_lower_case", default=False, action='store_true',
                         help="Set this flag if you are using an uncased model.")
-    parser.add_argument("--train_batch_size", default=32, type=int,
+    parser.add_argument("--train_batch_size", default=64, type=int,
                         help="Total batch size for training.")
     parser.add_argument("--learning_rate", default=5e-5, type=float,
                         help="The initial learning rate for Adam.")
@@ -85,7 +85,6 @@ def main():
     with open("global.config", 'r') as f:
         configs_dict = json.load(f)
 
-    args.task_name = configs_dict.get("dataset")
     args.output_dir = args.output_dir + '_{}_{}_{}_{}'.format(args.sample_num, args.sample_ratio, args.gpu, args.temp)
     print(args)
     
@@ -99,6 +98,7 @@ def main():
         "mpqa": AugProcessor,
         "rt-polarity": AugProcessor,
         "subj": AugProcessor,
+        '2020AIGrand': AugProcessor
     }
 
     task_name = args.task_name
@@ -118,11 +118,11 @@ def main():
         model = torch.load(weights_path)
         return model
     
-    args.data_dir = os.path.join(args.data_dir, task_name)
-    args.output_dir = os.path.join(args.output_dir, task_name)
-    if os.path.exists(args.output_dir):
-        shutil.rmtree(args.output_dir)
-    shutil.copytree("aug_data/{}".format(task_name), args.output_dir)
+    # args.data_dir = os.path.join(args.data_dir, task_name)
+    # args.output_dir = os.path.join(args.output_dir, task_name)
+    # if os.path.exists(args.output_dir):
+    #     shutil.rmtree(args.output_dir)
+    # shutil.copytree("aug_data/{}".format(task_name), args.output_dir)
 
     ## prepare for training
     train_examples = processor.get_train_examples(args.data_dir)
@@ -135,20 +135,20 @@ def main():
     logger.info("  Batch size = %d", args.train_batch_size)
     logger.info("  Num steps = %d", num_train_steps)
 
-    save_model_dir = os.path.join(args.save_model_dir, task_name)
-    if not os.path.exists(save_model_dir):
-        os.mkdir(save_model_dir)
+    # save_model_dir = os.path.join(args.save_model_dir, task_name)
+    # if not os.path.exists(save_model_dir):
+    #     os.mkdir(save_model_dir)
     MASK_id = cbert_utils.convert_tokens_to_ids(['[MASK]'], tokenizer)[0]
 
     origin_train_path = os.path.join(args.output_dir, "train_origin.tsv")
     save_train_path = os.path.join(args.output_dir, "train.tsv")
     shutil.copy(origin_train_path, save_train_path)
-    best_test_acc = train_text_classifier.train("aug_data_{}_{}_{}_{}".format(args.sample_num, args.sample_ratio, args.gpu, args.temp))
-    print("before augment best acc:{}".format(best_test_acc))
+    # best_test_acc = train_text_classifier.train("aug_data_{}_{}_{}_{}".format(args.sample_num, args.sample_ratio, args.gpu, args.temp))
+    # print("before augment best acc:{}".format(best_test_acc))
 
     for e in trange(int(args.num_train_epochs), desc="Epoch"):
         torch.cuda.empty_cache()
-        cbert_name = "{}/BertForMaskedLM_{}_epoch_{}".format(task_name.lower(), task_name.lower(), e+1)
+        cbert_name = "{}/BertForMaskedLM_{}_epoch_{}".format(task_name, task_name, e+1)
         model = load_model(cbert_name)
         model.cuda()
         shutil.copy(origin_train_path, save_train_path)
@@ -176,10 +176,10 @@ def main():
         predictions = predictions.detach().cpu()
         model.cpu()
         torch.cuda.empty_cache()
-        bak_train_path = os.path.join(args.output_dir, "train_epoch_{}.tsv".format(e))
-        shutil.copy(save_train_path, bak_train_path)
-        best_test_acc = train_text_classifier.train("aug_data_{}_{}_{}_{}".format(args.sample_num, args.sample_ratio, args.gpu, args.temp))
-        print("epoch {} augment best acc:{}".format(e, best_test_acc))
-
+        # bak_train_path = os.path.join(args.output_dir, "train_epoch_{}.tsv".format(e))
+        # shutil.copy(save_train_path, bak_train_path)
+        # best_test_acc = train_text_classifier.train("aug_data_{}_{}_{}_{}".format(args.sample_num, args.sample_ratio, args.gpu, args.temp))
+        # print("epoch {} augment best acc:{}".format(e, best_test_acc))
+        raise
 if __name__ == "__main__":
     main()
