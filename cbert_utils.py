@@ -327,10 +327,25 @@ def extract_features(example, sent_label, max_seq_length, tokenizer):
         input_ids.append(0)
         input_mask.append(0)
         segment_ids.append(0)
-    
+        mlm_label_ids.append(-100)
+   
     assert len(input_ids) == max_seq_length
     assert len(input_mask) == max_seq_length
     assert len(segment_ids) == max_seq_length
+    assert len(mlm_label_ids) == max_seq_length
+
+    if example.guid < 5:
+        logger.info("[cbert] *** Example ***")
+        logger.info("[cbert] guid: %s" % (example.guid))
+        logger.info("[cbert] file_name: %s" % (example.fn))
+        logger.info("[cbert] lebel: %s" % (example.label))
+        logger.info("[cbert] tokens: %s" % " ".join(
+            [str(x) for x in tokens]))
+        logger.info("[cbert] input_ids: %s" % " ".join([str(x) for x in input_ids]))
+        logger.info("[cbert] input_mask: %s" % " ".join([str(x) for x in input_mask]))
+        logger.info("[cbert] segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+        logger.info("[cbert] masked_lm_labels: %s" % " ".join([str(x) for x in mlm_label_ids]))
+
 
     features = InputFeature(input_ids=input_ids,
                              input_mask=input_mask,
