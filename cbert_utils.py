@@ -256,7 +256,7 @@ class BaseDataset(Dataset):
 
         example = InputExample(guid, tokens_a, label, fn)
 
-        features = extract_features(example, self.tokenizer, self.args.max_seq_length)
+        features = extract_features(example, label, self.args.max_seq_length, self.tokenizer)
 
         input = {
             'input_ids':features.input_ids,
@@ -301,7 +301,7 @@ def construct_train_dataloader(train_examples, label_list, max_seq_length, train
     train_dataloader = DataLoader(tensor_dataset, sampler=train_sampler, batch_size=train_batch_size)
     return train_features, num_train_steps, train_dataloader
 
-def extract_features(tokens_a, sent_label, max_seq_length, tokenizer):
+def extract_features(example, sent_label, max_seq_length, tokenizer):
     """extract features from tokens"""
 
     if len(tokens_a) > max_seq_length - 2:
@@ -333,6 +333,16 @@ def extract_features(tokens_a, sent_label, max_seq_length, tokenizer):
     assert len(input_ids) == max_seq_length
     assert len(input_mask) == max_seq_length
     assert len(segment_ids) == max_seq_length
+
+            features.append(
+            InputFeature(
+                init_ids=init_ids,        
+                input_ids=input_ids,
+                input_mask=input_mask,
+                segment_ids=segment_ids,
+                masked_lm_labels=masked_lm_labels,
+                fn=example.fn,
+                label=example.label))
 
     return tokens, input_ids, input_mask, segment_ids, mlm_label_ids
 
