@@ -263,7 +263,7 @@ def rev_wordpiece(str):
     return " ".join(str[1:-1])
 
 
-def extract_features(tokens_a, tokens_label, max_seq_length, tokenizer):
+def extract_features(tokens_a, sent_label, max_seq_length, tokenizer):
     """extract features from tokens"""
 
     if len(tokens_a) > max_seq_length - 2:
@@ -275,12 +275,12 @@ def extract_features(tokens_a, tokens_label, max_seq_length, tokenizer):
     tokens = []
     segment_ids = []
     tokens.append('[CLS]')
-    segment_ids.append(tokens_label)
+    segment_ids.append(sent_label) # add label info
     for token in tokens_a:
         tokens.append(token)
-        segment_ids.append(tokens_label)
+        segment_ids.append(sent_label)
     tokens.append('[SEP]')
-    segment_ids.append(tokens_label)
+    segment_ids.append(sent_label)
 
     ## construct init_ids for each example
     init_ids = tokenizer.convert_tokens_to_ids(tokens)
