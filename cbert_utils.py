@@ -249,20 +249,6 @@ def construct_train_dataloader(train_examples, label_list, max_seq_length, train
     train_dataloader = DataLoader(tensor_dataset, sampler=train_sampler, batch_size=train_batch_size)
     return train_features, num_train_steps, train_dataloader
 
-def rev_wordpiece(str):
-    """wordpiece function used in cbert"""
-    
-    #print(str)
-    if len(str) > 1:
-        for i in range(len(str)-1, 0, -1):
-            if str[i] == '[PAD]':
-                str.remove(str[i])
-            elif len(str[i]) > 1 and str[i][0]=='#' and str[i][1]=='#':
-                str[i-1] += str[i][2:]
-                str.remove(str[i])
-    return " ".join(str[1:-1])
-
-
 def extract_features(tokens_a, sent_label, max_seq_length, tokenizer):
     """extract features from tokens"""
 
