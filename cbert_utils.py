@@ -48,7 +48,8 @@ class InputExample(object):
 class InputFeature(object):
     """A single set of features of data."""
 
-    def __init__(self, input_ids, input_mask, segment_ids, masked_lm_labels):
+    def __init__(self, init_ids, input_ids, input_mask, segment_ids, masked_lm_labels):
+        self.init_ids = init_ids
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
@@ -107,6 +108,7 @@ class BaseDataset(Dataset):
         features = extract_features(example, label, self.args.max_seq_length, self.tokenizer)
 
         input = {
+            'init_ids':features.init_ids,
             'input_ids':features.input_ids,
             'input_mask':features.input_mask,
             'segment_ids':features.segment_ids,
@@ -116,7 +118,7 @@ class BaseDataset(Dataset):
         for k, v in input.items():
             input[k] = torch.tensor(v)
 
-        return input['input_ids'], input['input_mask'], input['segment_ids'], input['mlm_label_ids'], fn, label
+        return input['init_ids'], input['input_ids'], input['input_mask'], input['segment_ids'], input['mlm_label_ids'], fn, label
     
     def __len__(self):
         return len(self.data)
@@ -127,6 +129,7 @@ def extract_features(example, sent_label, max_seq_length, tokenizer):
     if len(tokens_a) > max_seq_length - 2:
         tokens_a = tokens_a[0: (max_seq_length - 2)]
     
+    init_ids = tokenizer.convert_tokens_to_ids(tokens_a)
     tokens_a, tokens_a_label = create_masked_lm_predictions(tokens_a, tokenizer)
     mlm_label_ids = ([-100] + tokens_a_label + [-100])
 
@@ -146,11 +149,13 @@ def extract_features(example, sent_label, max_seq_length, tokenizer):
     
     # Zero-pad up to the sequence length.
     while len(input_ids) < max_seq_length:
+        init_ids.append(0)
         input_ids.append(0)
         input_mask.append(0)
         segment_ids.append(0)
         mlm_label_ids.append(-100)
    
+    assert len(init_ids) == max_seq_length
     assert len(input_ids) == max_seq_length
     assert len(input_mask) == max_seq_length
     assert len(segment_ids) == max_seq_length
@@ -169,10 +174,11 @@ def extract_features(example, sent_label, max_seq_length, tokenizer):
         logger.info("[cbert] masked_lm_labels: %s" % " ".join([str(x) for x in mlm_label_ids]))
 
 
-    features = InputFeature(input_ids=input_ids,
-                             input_mask=input_mask,
-                             segment_ids=segment_ids,
-                             mlm_label_ids=mlm_label_ids)
+    features = InputFeature(init_ids=init_ids,
+                            input_ids=input_ids,
+                            input_mask=input_mask,
+                            segment_ids=segment_ids,
+                            mlm_label_ids=mlm_label_ids)
 
     return features
 
