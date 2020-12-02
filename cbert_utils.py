@@ -283,36 +283,20 @@ def extract_features(tokens_a, sent_label, max_seq_length, tokenizer):
     segment_ids.append(sent_label)
 
     ## construct init_ids for each example
-    init_ids = tokenizer.convert_tokens_to_ids(tokens)
-
-    ## construct input_ids for each example, we replace the word_id using 
-    ## the ids of masked words (mask words based on original sentence)
-    masked_lm_probs = 0.15
-    max_predictions_per_seq = 20
-    rng = random.Random(12345)
-    original_masked_lm_labels = [-100] * max_seq_length
-    (output_tokens, masked_lm_positions, 
-    masked_lm_labels) = create_masked_lm_predictions(
-            tokens, masked_lm_probs, original_masked_lm_labels, max_predictions_per_seq, rng, tokenizer)
-    input_ids = tokenizer.convert_tokens_to_ids(output_tokens)
-
-    # The mask has 1 for real tokens and 0 for padding tokens. Only real
-    # tokens are attended to.
+    input_ids = tokenizer.convert_tokens_to_ids(tokens)
     input_mask = [1] * len(input_ids)
     
     # Zero-pad up to the sequence length.
     while len(input_ids) < max_seq_length:
-        init_ids.append(0)
         input_ids.append(0)
         input_mask.append(0)
         segment_ids.append(0)
     
-    assert len(init_ids) == max_seq_length
     assert len(input_ids) == max_seq_length
     assert len(input_mask) == max_seq_length
     assert len(segment_ids) == max_seq_length
 
-    return tokens, init_ids, input_ids, input_mask, segment_ids, masked_lm_labels
+    return tokens, input_ids, input_mask, segment_ids, mlm_label_ids
 
 
 def create_masked_lm_predictions(tokens, tokenizer):
