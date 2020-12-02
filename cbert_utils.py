@@ -4,7 +4,25 @@ import logging
 import random
 
 import torch
-from torch.utils.data import TensorDataset, DataLoader, RandomSampler
+from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
+from torch.utils.data import Dataset 
+import json
+import re
+
+def preprocess_text(text):
+    text = text.replace("/", "")
+    text = text.replace("<", "")
+    text = text.replace(">", "")
+    text = text.replace("|", "")
+    text = text.replace("~", "")
+    text = text.replace(".", "")
+    text = text.replace(",", "")
+    text = text.replace("?", "")
+    text = text.replace("!", "")
+    text = text.replace("…", "")
+    text = ' '.join(text.split())  # 공백이 여러개인 경우를 없애기 위함
+    # text = re.sub(r'[a-zA-Z0-9]+', r'', text)  # 알파벳 및 숫자 제거
+    return text
 
 """initialize logger"""
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
@@ -14,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
-    def __init__(self, guid, text_a, label=None):
+    def __init__(self, guid, text_a, label=None, fn=None):
         """Constructs a InputExample/
 
         Args:
@@ -25,16 +43,19 @@ class InputExample(object):
         self.guid = guid
         self.text_a = text_a
         self.label = label
+        self.fn = fn
 
 class InputFeature(object):
     """A single set of features of data."""
 
-    def __init__(self, init_ids, input_ids, input_mask, segment_ids, masked_lm_labels):
+    def __init__(self, init_ids, input_ids, input_mask, segment_ids, masked_lm_labels, fn, label):
         self.init_ids = init_ids
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.masked_lm_labels = masked_lm_labels
+        self.fn = fn
+        self.label = label
 
 class DataProcessor(object):
     """Base class for data converters for sequence classification data sets."""
@@ -66,8 +87,9 @@ class AugProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base calss."""
-        return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples2("train")
+        # return self._create_examples(
+        #     self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
     def get_dev_examples(self, data_dir):
         """See base class."""
@@ -82,6 +104,8 @@ class AugProcessor(DataProcessor):
             return ["0", "1", "2", "3", "4"]
         elif name in ['TREC']:
             return ["0", "1", "2", "3", "4", "5"]
+        elif name in ['2020AIGrand']:
+            return [0, 1, 2, 3, 4]
     
     def _create_examples(self, lines, set_type):
         """Create examples for the training and dev sets."""
@@ -95,6 +119,46 @@ class AugProcessor(DataProcessor):
             examples.append(
                 InputExample(guid=guid, text_a=text_a, label=label))
         return examples
+    
+    def _create_examples2(self, set_type):
+        self.class2ans = {
+            '000001': 0,
+            '020121': 1,
+            '02051': 2,
+            '020811': 3,
+            '020819': 4
+        }
+        self.pat = re.compile('[A-Z]\s?:\s?(.*)')
+        self.pat1 = re.compile('(.*)')
+
+        with open('datasets/add_v7_train.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        with open('datasets/add_v7_dev.json', 'r', encoding='utf-8') as f:
+            data2 = json.load(f)
+        self.data = data + data2
+        examples = []
+
+        for idx, conv in enumerate(self.data):
+            text = []
+            for line in conv['text']:
+                if self.pat.search(line):
+                    line_ = self.pat.search(line).group(1)
+                else:
+                    line_ = self.pat1.search(line).group(1)
+                
+                if line_:
+                    text.append(line_)
+
+            text = map(preprocess_text, text)
+            text = ' '.join(text)
+
+            label = self.class2ans[conv['label']]
+
+            guid = "%s-%s" % (set_type, idx)
+            examples.append(
+                InputExample(guid=guid, text_a=text, label=label, fn=conv['file_name']))
+        return examples
+
 
 def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer):
     """Loads a data file into a list of 'InputBatch's."""
@@ -123,12 +187,16 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
                 input_ids=input_ids,
                 input_mask=input_mask,
                 segment_ids=segment_ids,
-                masked_lm_labels=masked_lm_labels))
+                masked_lm_labels=masked_lm_labels,
+                fn=example.fn,
+                label=example.label))
 
         """print examples"""
         if ex_index < 5:
             logger.info("[cbert] *** Example ***")
             logger.info("[cbert] guid: %s" % (example.guid))
+            logger.info("[cbert] file_name: %s" % (example.fn))
+            logger.info("[cbert] lebel: %s" % (example.label))
             logger.info("[cbert] tokens: %s" % " ".join(
                 [str(x) for x in tokens]))
             logger.info("[cbert] init_ids: %s" % " ".join([str(x) for x in init_ids]))
@@ -137,6 +205,22 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
             logger.info("[cbert] segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
             logger.info("[cbert] masked_lm_labels: %s" % " ".join([str(x) for x in masked_lm_labels]))
     return features
+
+class BaseDataset(Dataset):
+    def __init__(self, init_ids, input_ids, input_mask, segment_ids, masked_lm_labels, fns, labels):
+        self.init_ids = init_ids
+        self.input_ids = input_ids
+        self.input_mask = input_mask
+        self.segment_ids = segment_ids
+        self.masked_lm_labels = masked_lm_labels
+        self.fns = fns
+        self.labels = labels
+
+    def __getitem__(self, idx):
+        return self.init_ids[idx], self.input_ids[idx], self.input_mask[idx], self.segment_ids[idx], self.masked_lm_labels[idx], self.fns[idx], self.labels[idx]
+    def __len__(self):
+        return len(self.init_ids)
+
 
 def construct_train_dataloader(train_examples, label_list, max_seq_length, train_batch_size, num_train_epochs, tokenizer, device):
     """construct dataloader for training data"""
@@ -152,10 +236,16 @@ def construct_train_dataloader(train_examples, label_list, max_seq_length, train
     all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long, device=device)
     all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long, device=device)
     all_masked_lm_labels = torch.tensor([f.masked_lm_labels for f in train_features], dtype=torch.long, device=device)
+    all_fns = [f.fn for f in train_features]
+    all_labels = [f.label for f in train_features]
     
-    tensor_dataset = TensorDataset(all_init_ids, all_input_ids, all_input_mask, 
-        all_segment_ids, all_masked_lm_labels)
-    train_sampler = RandomSampler(tensor_dataset)
+    # tensor_dataset = TensorDataset(all_init_ids, all_input_ids, all_input_mask, 
+    #     all_segment_ids, all_masked_lm_labels)
+
+    tensor_dataset = BaseDataset(all_init_ids, all_input_ids, all_input_mask, all_segment_ids, all_masked_lm_labels, all_fns, all_labels)
+    
+    train_sampler = SequentialSampler(tensor_dataset)
+    # train_sampler = RandomSampler(tensor_dataset)
     train_dataloader = DataLoader(tensor_dataset, sampler=train_sampler, batch_size=train_batch_size)
     return train_features, num_train_steps, train_dataloader
 
@@ -197,7 +287,7 @@ def extract_features(tokens_a, tokens_label, max_seq_length, tokenizer):
     masked_lm_probs = 0.15
     max_predictions_per_seq = 20
     rng = random.Random(12345)
-    original_masked_lm_labels = [-1] * max_seq_length
+    original_masked_lm_labels = [-100] * max_seq_length
     (output_tokens, masked_lm_positions, 
     masked_lm_labels) = create_masked_lm_predictions(
             tokens, masked_lm_probs, original_masked_lm_labels, max_predictions_per_seq, rng, tokenizer)
